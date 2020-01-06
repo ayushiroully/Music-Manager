@@ -4,21 +4,22 @@ import spotipy.util as util
 from abstractClient import AbstractMusicClient
 import random
 import datetime
+import threading 
 
-#Global Config for connecting Auth Token.
+#Declare Global config
+likedSongs = []
+getLikedSongsLimit = 10000 #Spotify provided maximum 10000 songs for a particular user.
+monitor_thread = True      #maximumLikeLimitinThreadTimeout = 2000
+token_refresh_time = 3300 #Mention refresh time in seconds
+scanning_time = 30   #Liked Songs scan Time 
+defaultPlaylist = 'Synced Music'
 client_id = '195046102e0d48e1b2abeeb16c333b1f'
 client_secret = '5dc1c5461fe84971b9e378932efe004b'
 redirect_uri = 'http://127.0.0.1:5000/'
 url = 'https://accounts.spotify.com/authorize'
 scope = 'user-library-read user-top-read playlist-modify-public playlist-modify-private user-follow-read' # ugc-image-upload' this is needed for uploading a custom image to the playlist
 username = 'Vicarious11' #enter username here
-defaultPlaylist = 'Synced Music'
 token = util.prompt_for_user_token(username,scope,client_id,client_secret,redirect_uri)
-likedSongs = []
-getLikedSongsLimit = 10000 
-#Spotify provided maximum 10000 songs for a particular user.
-
-#maximumLikeLimitinThreadTimeout = 2000
 
 
 class song:
@@ -42,12 +43,14 @@ class spotifyClient(AbstractMusicClient):
 		playlists = sp.user_playlists(user["id"])
 		for playlist in playlists["items"]:
 			if playlist['name'] == playlistName:
-				return playlist["id"]
+				self.playlistID = playlist["id"]
+				break
 			else:		
 				playlist = sp.user_playlist_create(userId,playlistName)
-				del sp
-				return playlist["id"]
-	
+				self.playlistID = playlist["id"]
+				break
+		del sp
+
 	def search_song(self, name, artist,search_limit):
 		sp = spotipy.Spotify(auth=token)
 		results = sp.search(q='artist:' + artist, type='artist')
@@ -57,7 +60,7 @@ class spotifyClient(AbstractMusicClient):
 				results = sp.artist_top_tracks(i["uri"])
 				for track in results['tracks'][:search_limit]:
 					if track['name'] == name:
-						trackName =track['name']
+						trackName = track['name']
 						artistName = i["name"]
 						albumName = track['album'].get("name","none")
 						spotify_id = track["id"]
@@ -75,21 +78,21 @@ class spotifyClient(AbstractMusicClient):
 	def get_song_details(self,songId):
 		print("fuck")
 
-	def dislike_song(self, song,playlistId):
+	def dislike_song(self, song):
 		sp = spotipy.Spotify(auth=token)
-		results = sp.user_playlist_remove_all_occurrences_of_tracks(username,playlistId,[song.song_id])
+		results = sp.user_playlist_remove_all_occurrences_of_tracks(username,self.playlistID,[song.song_id])
 		print(results)
 		del sp
 
-	def like_song(self, song, playlistId):
+	def like_song(self, song):
 		sp = spotipy.Spotify(auth=token)
 		if song.song_id == "null":
 			print("No song with that name present")
-		results = sp.user_playlist_add_tracks(username,playlistId,[song.song_id])
+		results = sp.user_playlist_add_tracks(username,self.playlistID,[song.song_id])
 		del sp 
 
 #one time process. To be called before starting the monitor.
-	def get_liked_songs(self,playlistId):
+	def get_liked_songs(self):
 		sp = spotipy.Spotify(auth=token)
 		try:
 			for i in range(0,getLikedSongsLimit, 50):	
@@ -98,47 +101,73 @@ class spotifyClient(AbstractMusicClient):
 					track = item["track"]
 					print(track["name"])
 					likedSongs.append(track["name"])
-					#sp.user_playlist_add_tracks(username,playlistId,[track["id"]])
+					#sp.user_playlist_add_tracks(username,self.playlistID,[track["id"]])
 		except TypeError:
 			print("Songs Appended Successfully")
 			pass	
 		del sp
 
-	def start_like_monitor(self,playlistId):
-		recentlyLikedSongs = []
-		songIds = []
-		differenceBuffer = []
-		sp = spotipy.Spotify(auth=token)
-		results = sp.current_user_saved_tracks(limit=50)
-		for item in results["items"]:
-			track = item["track"]
-			recentlyLikedSongs.append(track["name"])
-			songIds.append(track["id"])
-		differenceBuffer = set(recentlyLikedSongs) - set(likedSongs[:50])
-		likedSongs.extend(differenceBuffer)
-		print(differenceBuffer)
-		print("lets see if there are any liked songs until then")
-		if len(differenceBuffer) > 0:
-			for i in range(0,len(differenceBuffer)):
-				sp.user_playlist_add_tracks(username,playlistId,[songIds['i']])
-				print("I am Sexy and I know it")
-		del sp
+	def start_monitor_thread(self,instanceName):
+		T1 = threading.Thread(target = instanceName.start_like_monitor)
+		T1.start()
+		print("Scanning Initiated")
+		T1.join()
+
+	def stop_monitor_thread(self):
+		monitor_thread = False
+
+	# @classmethod
+	# def refresh_token(cls):
+	# 	T2 = threading.Thread(target = self.get_token)
+	# 	T2.start()
+	# 	print("Refreshing Token")
+
+
+	def start_like_monitor(self):
+		while True:
+			recentlyLikedSongs = []
+			songIds = []
+			differenceBuffer = []
+			sp = spotipy.Spotify(auth=token)
+			results = sp.current_user_saved_tracks(limit=50)
+			for item in results["items"]:
+				track = item["track"]
+				recentlyLikedSongs.append(track["name"])
+				songIds.append(track["id"])
+
+			differenceBuffer = set(recentlyLikedSongs) - set(likedSongs[:50])
+			likedSongs.extend(differenceBuffer)
+				
+			print(len(differenceBuffer))
+			print(differenceBuffer)
+
+			if len(differenceBuffer) > 0:
+				for i in range(len(differenceBuffer)):
+					sp.user_playlist_add_tracks(username,self.playlistID,[songIds[i]])
+
+			del differenceBuffer
+
+			del sp
+			time.sleep(10)
+			if monitor_thread == False:
+				break
 
 if __name__=='__main__':
         musicManager = spotifyClient()
         artist = 'Bea Miller'
         name = 'like that'
         search_limit = 10000
-        playlistId = musicManager.createNewPlaylist(defaultPlaylist)
+        musicManager.createNewPlaylist(defaultPlaylist)
         print('Playlist Created')
        	searchedSong = musicManager.search_song(name,artist,search_limit)
         if searchedSong == None:
         	print("Song not found")
         else:
-        	musicManager.like_song(searchedSong, playlistId)
+        	musicManager.like_song(searchedSong)
         print("Song Added")
-        musicManager.dislike_song(searchedSong, playlistId)
+        musicManager.dislike_song(searchedSong)
         print("Song Deleted")
-        musicManager.get_liked_songs(playlistId)
-        musicManager.start_like_monitor(playlistId)
-
+        musicManager.get_liked_songs()
+        musicManager.start_monitor_thread(musicManager)
+        #musicManager.start_like_monitor()
+        
