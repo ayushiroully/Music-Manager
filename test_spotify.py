@@ -5,21 +5,29 @@ from abstractClient import AbstractMusicClient
 import random
 import datetime
 import threading 
+import schedule
 
-#Declare Global config
+#global Variables
 likedSongs = []
+like_limit = 50 #User can only like 50 songs in 30 seconds
 getLikedSongsLimit = 10000 #Spotify provided maximum 10000 songs for a particular user.
 monitor_thread = True      #maximumLikeLimitinThreadTimeout = 2000
 token_refresh_time = 3300 #Mention refresh time in seconds
-scanning_time = 30   #Liked Songs scan Time 
+monitor_thread_time = 30 
+global token
+
+#userConfigforSpotify
 defaultPlaylist = 'Synced Music'
 client_id = '195046102e0d48e1b2abeeb16c333b1f'
 client_secret = '5dc1c5461fe84971b9e378932efe004b'
 redirect_uri = 'http://127.0.0.1:5000/'
 url = 'https://accounts.spotify.com/authorize'
-scope = 'user-library-read user-top-read playlist-modify-public playlist-modify-private user-follow-read' # ugc-image-upload' this is needed for uploading a custom image to the playlist
+scope = 'user-library-read user-top-read playlist-modify-public playlist-modify-private user-follow-read' 
 username = 'Vicarious11' #enter username here
-token = util.prompt_for_user_token(username,scope,client_id,client_secret,redirect_uri)
+
+
+def get_token():
+	token = util.prompt_for_user_token(username,scope,client_id,client_secret,redirect_uri)
 
 
 class song:
@@ -116,15 +124,8 @@ class spotifyClient(AbstractMusicClient):
 	def stop_monitor_thread(self):
 		monitor_thread = False
 
-	# @classmethod
-	# def refresh_token(cls):
-	# 	T2 = threading.Thread(target = self.get_token)
-	# 	T2.start()
-	# 	print("Refreshing Token")
-
-
 	def start_like_monitor(self):
-		while True:
+		while monitor_thread:
 			recentlyLikedSongs = []
 			songIds = []
 			differenceBuffer = []
@@ -135,39 +136,37 @@ class spotifyClient(AbstractMusicClient):
 				recentlyLikedSongs.append(track["name"])
 				songIds.append(track["id"])
 
-			differenceBuffer = set(recentlyLikedSongs) - set(likedSongs[:50])
-			likedSongs.extend(differenceBuffer)
-				
+			differenceBuffer = list(set(recentlyLikedSongs) - set(likedSongs[:50]))
 			print(len(differenceBuffer))
 			print(differenceBuffer)
 
 			if len(differenceBuffer) > 0:
 				for i in range(len(differenceBuffer)):
 					sp.user_playlist_add_tracks(username,self.playlistID,[songIds[i]])
+					likedSongs.insert(0,differenceBuffer[i])
 
-			del differenceBuffer
+			del differenceBuffer,sp,recentlyLikedSongs,songIds
+			time.sleep(monitor_thread_time)
 
-			del sp
-			time.sleep(10)
 			if monitor_thread == False:
 				break
 
 if __name__=='__main__':
-        musicManager = spotifyClient()
-        artist = 'Bea Miller'
-        name = 'like that'
-        search_limit = 10000
-        musicManager.createNewPlaylist(defaultPlaylist)
-        print('Playlist Created')
-       	searchedSong = musicManager.search_song(name,artist,search_limit)
-        if searchedSong == None:
-        	print("Song not found")
-        else:
-        	musicManager.like_song(searchedSong)
-        print("Song Added")
-        musicManager.dislike_song(searchedSong)
-        print("Song Deleted")
-        musicManager.get_liked_songs()
-        musicManager.start_monitor_thread(musicManager)
+				get_token()
+				musicManager = spotifyClient()
+				artist = 'Bea Miller'
+				name = 'like that'
+				search_limit = 10000
+				musicManager.createNewPlaylist(defaultPlaylist)
+				print('Playlist Created')
+				print("Song Added")
+				musicManager.dislike_song(searchedSong)
+				print("Song Deleted")
+				musicManager.get_liked_songs()
+				musicManager.start_monitor_thread(musicManager)
+				schedule.every(55).minutes.do(get_token())
+				while True:
+					pass
+        
         #musicManager.start_like_monitor()
         
