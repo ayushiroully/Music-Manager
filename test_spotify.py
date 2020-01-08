@@ -2,10 +2,11 @@ import time
 import spotipy
 import spotipy.util as util
 from abstractClient import AbstractMusicClient
+import schedule
 import random
 import datetime
 import threading 
-import schedule
+
 
 #global Variables
 likedSongs = []
@@ -14,7 +15,6 @@ getLikedSongsLimit = 10000 #Spotify provided maximum 10000 songs for a particula
 monitor_thread = True      #maximumLikeLimitinThreadTimeout = 2000
 token_refresh_time = 3300 #Mention refresh time in seconds
 monitor_thread_time = 30 
-global token
 
 #userConfigforSpotify
 defaultPlaylist = 'Synced Music'
@@ -27,6 +27,7 @@ username = 'Vicarious11' #enter username here
 
 
 def get_token():
+	global token 
 	token = util.prompt_for_user_token(username,scope,client_id,client_secret,redirect_uri)
 
 
@@ -144,7 +145,6 @@ class spotifyClient(AbstractMusicClient):
 				for i in range(len(differenceBuffer)):
 					sp.user_playlist_add_tracks(username,self.playlistID,[songIds[i]])
 					likedSongs.insert(0,differenceBuffer[i])
-
 			del differenceBuffer,sp,recentlyLikedSongs,songIds
 			time.sleep(monitor_thread_time)
 
@@ -159,9 +159,6 @@ if __name__=='__main__':
 				search_limit = 10000
 				musicManager.createNewPlaylist(defaultPlaylist)
 				print('Playlist Created')
-				print("Song Added")
-				musicManager.dislike_song(searchedSong)
-				print("Song Deleted")
 				musicManager.get_liked_songs()
 				musicManager.start_monitor_thread(musicManager)
 				schedule.every(55).minutes.do(get_token())
