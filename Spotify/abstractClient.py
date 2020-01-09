@@ -16,29 +16,29 @@ class AbstractMusicClient(ABC):
     def get_song_details(self, song_id):
         pass
 
-    # @abstractmethod
-    # def get_liked_songs(self):
-    #      pass
+    @abstractmethod
+    def get_liked_songs(self):
+        pass
 
     @abstractmethod
     def like_song(self, song):
          pass
 
-    # @abstractmethod
-    # def dislike_song(self, song):
-    #     pass
+    @abstractmethod
+    def dislike_song(self, song):
+        pass
 
-    # @abstractmethod
-    # def start_like_monitor(self):
-    #     pass
+    @abstractmethod
+    def start_like_monitor(self):
+        pass
 
-    # @abstractmethod
-    # def stop_like_monitor(self):
-    #     pass
+    @abstractmethod
+    def stop_like_monitor(self):
+        pass
 
-    # @abstractmethod
-    # def create_like_monitor_thread(self):
-    #     pass
+    @abstractmethod
+    def create_like_monitor_thread(self):
+        pass
 
     # @abstractmethod
     # def set_sync_server(self, server):
