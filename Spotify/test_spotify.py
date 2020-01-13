@@ -5,12 +5,13 @@ from abstractClient import AbstractMusicClient
 import song
 from authToken import authCodeFlow
 import math
+import threading
 
 #global Variables
 like_limit = 50            #User can only like 50 songs in 30 seconds
 getLikedSongsLimit = 10000 #Spotify provided maximum 10000 songs for a particular user.
 monitor_thread = True      #maximumLikeLimitinThreadTimeout = 2000
-token_refresh_time = 55    #Mention refresh time in minutes
+token_refresh_time = 30    #Mention refresh time in minutes
 monitor_thread_time = 1    #mention liked song thread in seconds
 search_limit = 10000
 
@@ -104,14 +105,15 @@ class spotifyClient(AbstractMusicClient):
 		return recentlyLikedSongs
 
 	def start_like_monitor(self):
-		self.MonitorMode = True
+		monitor_thread = threading.Thread(target = self.create_like_monitor_thread, daemon = True)
+		monitor_thread.start()
 
 	def stop_like_monitor(self):
 		self.MonitorMode = False
 
 
 	def create_like_monitor_thread(self):
-		count = 0 
+		count = 0
 		while self.MonitorMode:
 			recentlyLikedSongs = []
 			likeBuffer = []
@@ -151,7 +153,7 @@ musicManager.createNewPlaylist(defaultPlaylist)
 print("Playlist Created")
 musicManager.get_global_playlist(False)
 musicManager.start_like_monitor()
-musicManager.create_like_monitor_thread()
-
+while True:
+	pass
 
 
