@@ -1,19 +1,21 @@
+from __future__ import print_function
 import time
 import spotipy
 import spotipy.util as util
+import spotipy.oauth2 as oauth2
 from abstractClient import AbstractMusicClient
 import random
 import datetime
 import threading 
 import song
-
+import schedule 
 
 #global Variables
 like_limit = 50 #User can only like 50 songs in 30 seconds
 getLikedSongsLimit = 10000 #Spotify provided maximum 10000 songs for a particular user.
 monitor_thread = True      #maximumLikeLimitinThreadTimeout = 2000
-token_refresh_time = 5 #Mention refresh time in minutes
-monitor_thread_time = 0  #mention liked song thread in seconds
+token_refresh_time = 55 #Mention refresh time in minutes
+monitor_thread_time = 1  #mention liked song thread in seconds
 search_limit = 10000
 
 #userConfigforSpotify
@@ -25,17 +27,43 @@ url = 'https://accounts.spotify.com/authorize'
 scope = 'user-library-read user-top-read playlist-modify-public playlist-modify-private user-follow-read' 
 username = 'Vicarious11' #enter username here
 
+
+class authCodeFlow:
+	sp_oauth = oauth2.SpotifyOAuth(client_id=client_id,client_secret=client_secret,redirect_uri=redirect_uri,scope=scope)
+	token_info = sp_oauth.get_cached_token() 	
+	def __init__(self):
+		pass
+
+	def get_access_token(self):
+			
+		if not self.token_info:
+			auth_url = self.sp_oauth.get_authorize_url()
+			print(auth_url)
+			response = input('Paste the above link into your browser, then paste the redirect url here: ')
+			code = self.sp_oauth.parse_response_code(response)
+			self.token_info = self.sp_oauth.get_access_token(code)
+			token = self.token_info['access_token']	
+		return token
+
+	def refresh_token(self, instance):
+		
+		self.token_info = self.sp_oauth.refresh_access_token(self.token_info['refresh_token'])
+		token = self.token_info['access_token']
+		print(token)
+		print("Its refreshed")
+		instance = spotipy.Spotify(auth=token)
+
+
 class spotifyClient(AbstractMusicClient):	
-	token = util.prompt_for_user_token(username,scope,client_id,client_secret,redirect_uri)
+	Token = authCodeFlow()
+	token = Token.get_access_token()
 	sp = spotipy.Spotify(auth=token)
 
-
-
+#	spotipy.
 	def __init__(self):
 		self.playlistID = None
 		self.likedSongs = []
 		self.MonitorMode = True
-		self.length = None
 
 	def createNewPlaylist(self,playlistName):	
 		user = self.sp.current_user()
@@ -82,49 +110,44 @@ class spotifyClient(AbstractMusicClient):
 	def like_song(self, song):
 		if song.song_id == "null":
 			print("No song with that name present")
-		results = self.sp.user_playlist_add_tracks(username,self.playlistID,[song.song_id])
+		self.sp.user_saved_tracks_add([song.song_id])
 
 #one time process. To be called before starting the monitor to create the global playlist
 	def get_global_playlist(self, copyPlaylist):
-		try:
-			for trackIndex in range(0,getLikedSongsLimit, 50):	
-				results = self.sp.current_user_saved_tracks(limit=50, offset=trackIndex)
-
-				for item in results["items"]:
-					track = item["track"]
-					self.likedSongs.append(track["id"])	
-					if copyPlaylist:
-						self.sp.user_playlist_add_tracks(username,self.playlistID,[track["id"]])
+		for trackIndex in range(0,getLikedSongsLimit, 50):	
+			results = self.sp.current_user_saved_tracks(limit=50, offset=trackIndex)
+			for item in results["items"]:
+				track = item["track"]
+				self.likedSongs.append(track["id"])	
+				if copyPlaylist:
+					self.sp.user_playlist_add_tracks(username,self.playlistID,[track["id"]])
+				
+			if results["next"] == None:
+				break
          
-		except TypeError:
-			print("Songs Appended Successfully")
-			pass	
 
 
 	def get_liked_songs(self):
 		recentlyLikedSongs = []
-		try:
-			for  trackIndex in range(0,getLikedSongsLimit, 50):
-				results = self.sp.current_user_saved_tracks(limit=50,offset = trackIndex)
-				
-				for item in results["items"]:
-					track = item["track"]
-					recentlyLikedSongs.append(track["id"])
+		for  trackIndex in range(0,getLikedSongsLimit, 50):
+			results = self.sp.current_user_saved_tracks(limit=50,offset = trackIndex)
+			for item in results["items"]:
+				track = item["track"]
+				recentlyLikedSongs.append(track["id"])
 
-		except TypeError:
-			print("Songs Appended Successfully")
-			pass
+			if results["next"] == None:
+				break
 
 		return recentlyLikedSongs
 
 	def start_like_monitor(self):
-		monitor_thread = threading.Thread(target = self.create_like_monitor_thread)
-		monitor_thread.start()
-		print("Thread Started")
-		monitor_thread.join()
+		schedule.every(monitor_thread_time).minutes.do(self.create_like_monitor_thread)
 
 	def stop_like_monitor(self):
 		self.MonitorMode = False
+
+	def refresh_token_thread(self):
+		schedule.every(token_refresh_time).minutes.do(self.Token.refresh_token, self.sp) 
 
 	def create_like_monitor_thread(self):
 		while self.MonitorMode:
@@ -135,8 +158,6 @@ class spotifyClient(AbstractMusicClient):
 			recentlyLikedSongs = self.get_liked_songs()
 			likeBuffer    = list(set(recentlyLikedSongs) - set(self.likedSongs))
 			dislikeBuffer = list(set(self.likedSongs) - set(recentlyLikedSongs))
-			print("Liked Songs" + str(likeBuffer))
-			print("Disliked songs" + str(dislikeBuffer))
 
 			if len(likeBuffer) > 0:
 				for trackId in likeBuffer:
@@ -147,26 +168,19 @@ class spotifyClient(AbstractMusicClient):
 				for trackId in dislikeBuffer:
 					self.sp.user_playlist_remove_all_occurrences_of_tracks(username,self.playlistID,[trackId])
 					self.likedSongs = [songId for songId in self.likedSongs if songId != trackId]
-
 				
 			del recentlyLikedSongs,likeBuffer, dislikeBuffer
-			time.sleep(monitor_thread_time)
-
-			if self.MonitorMode == False:
-				break
-
-
+			break
 
 musicManager = spotifyClient()
+
 musicManager.createNewPlaylist(defaultPlaylist)
 print("Playlist Created")
 musicManager.get_global_playlist(False)
 musicManager.start_like_monitor()
+musicManager.refresh_token_thread()
+
 while True:
-	pass
+	schedule.run_pending()
 
 
-			#	musicManager.start_monitor_thread(musicManager)
-        
-        #musicManager.start_like_monitor()
-        
