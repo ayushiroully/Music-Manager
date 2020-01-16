@@ -1,4 +1,3 @@
-from __future__ import print_function
 import time
 import spotipy
 from abstractClient import AbstractMusicClient
@@ -107,6 +106,7 @@ class spotifyClient(AbstractMusicClient):
 	def start_like_monitor(self):
 		monitor_thread = threading.Thread(target = self.create_like_monitor_thread, daemon = True)
 		monitor_thread.start()
+		monitor_thread.join()
 
 	def stop_like_monitor(self):
 		self.MonitorMode = False
@@ -141,7 +141,7 @@ class spotifyClient(AbstractMusicClient):
 			count = count + 1
 
 			if count == int(math.floor(token_refresh_time / monitor_thread_time)):
-				self.Token.refresh_token(self.sp)
+				self.sp = spotipy.Spotify(auth = self.Token.refresh_token())
 				count = 0
 
 			print(count)

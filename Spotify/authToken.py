@@ -22,10 +22,10 @@ class authCodeFlow:
 			token = self.token_info['access_token']	
 		return token
 
-	def refresh_token(self, instance):
+	def refresh_token(self):
 		
 		self.token_info = self.sp_oauth.refresh_access_token(self.token_info['refresh_token'])
 		token = self.token_info['access_token']
 		print(token)
 		print("Its refreshed")
-		instance = spotipy.Spotify(auth=token)
+		return token
