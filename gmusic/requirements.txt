@@ -36,7 +36,7 @@ pandas==0.25.3
 pathspec==0.5.9
 pdfarranger==1.1.1
 pexpect==4.6.0
-Pillow==5.4.1
+Pillow==8.3.2
 prompt-toolkit==1.0.18
 pyasn1==0.4.8
 pycairo==1.16.2
