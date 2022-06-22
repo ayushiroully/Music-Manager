@@ -30,7 +30,7 @@ lazy-object-proxy==1.4.3
 lightdm-gtk-greeter-settings==1.2.2
 mccabe==0.6.1
 mugshot==0.4.1
-numpy==1.17.4
+numpy==1.22.0
 onboard==1.4.1
 pandas==0.25.3
 pathspec==0.5.9
